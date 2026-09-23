@@ -1,0 +1,46 @@
+name: Daily Job Reel/Post Automation
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  post-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ffmpeg + fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run automation
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          GITHUB_PAGES_BASE_URL: ${{ secrets.GITHUB_PAGES_BASE_URL }}
+        run: python main.py
+
+      - name: Commit updated state
+        run: |
+          git add state/posted_jobs.json || true
+          git diff --cached --quiet || (git -c user.name="job-bot" -c user.email="job-bot@users.noreply.github.com" commit -m "Update posted jobs state" && git push)
