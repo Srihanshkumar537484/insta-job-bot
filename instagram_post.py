@@ -1,4 +1,5 @@
 """
+"""
 instagram_post.py
 Instagram Graph API se post karne ka code — dono, feed IMAGE aur REEL,
 support karta hai. Graph API ka flow do-step hai:
@@ -25,6 +26,17 @@ def _check_token():
         raise ValueError("IG_USER_ID / IG_ACCESS_TOKEN set nahi hai (secrets check karo)")
 
 
+def _raise_with_detail(resp):
+    """Graph API fail ho to uska asli JSON error message print/raise karo,
+    sirf '400 Bad Request' nahi — taaki asli wajah pata chale."""
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json()
+        except ValueError:
+            detail = resp.text
+        raise RuntimeError(f"Graph API error (status {resp.status_code}): {detail}")
+
+
 def post_image(image_url: str, caption: str) -> str:
     """Feed post karta hai. Returns published media id."""
     _check_token()
@@ -35,7 +47,7 @@ def post_image(image_url: str, caption: str) -> str:
         "caption": caption,
         "access_token": config.IG_ACCESS_TOKEN,
     }, timeout=60)
-    resp.raise_for_status()
+    _raise_with_detail(resp)
     creation_id = resp.json()["id"]
 
     return _publish(creation_id)
@@ -56,7 +68,7 @@ def post_reel(video_url: str, caption: str, cover_url: str = None) -> str:
         payload["cover_url"] = cover_url
 
     resp = requests.post(create_url, data=payload, timeout=60)
-    resp.raise_for_status()
+    _raise_with_detail(resp)
     creation_id = resp.json()["id"]
 
     _wait_until_ready(creation_id)
@@ -89,5 +101,5 @@ def _publish(creation_id: str) -> str:
         "creation_id": creation_id,
         "access_token": config.IG_ACCESS_TOKEN,
     }, timeout=60)
-    resp.raise_for_status()
+    _raise_with_detail(resp)
     return resp.json()["id"]
