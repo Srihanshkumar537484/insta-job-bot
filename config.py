@@ -10,6 +10,10 @@ import os
 IG_USER_ID = os.environ.get("IG_USER_ID", "")          # Instagram Business Account ID
 IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN", "") # Long-lived access token
 
+# ---- Telegram Bot API ----
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")  # @BotFather se mila token
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")      # channel ka @username ya chat id
+
 # ---- Job data source ----
 # Google Sheet ko File > Share > Publish to web > CSV karke uska link yahan daalna hai
 SHEET_CSV_URL = os.environ.get("SHEET_CSV_URL", "")
@@ -32,5 +36,6 @@ GITHUB_PAGES_BASE_URL = os.environ.get("GITHUB_PAGES_BASE_URL", "")
 
 # ---- Paths ----
 STATE_FILE = "state/posted_jobs.json"
+STATE_DIR = "state"
 MEDIA_DIR = "docs/media"
 ASSETS_DIR = "assets"
