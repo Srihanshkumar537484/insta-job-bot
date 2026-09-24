@@ -7,7 +7,8 @@ Flow (har naye job ke liye, ek ek karke):
   2. generate_creative.py -> image ya reel banao (alternately)
   3. git commit+push      -> docs/media me daalo taaki GitHub Pages se public URL mile
   4. instagram_post.py    -> Graph API se Instagram pe publish karo
-  5. state.py              -> job ko "posted" mark karo taaki dubara na ho
+  5. telegram_post.py     -> Instagram ke baad wahi media Telegram channel pe bhi bhejo
+  6. state.py              -> job ko "posted" mark karo taaki dubara na ho
 """
 
 import os
@@ -21,6 +22,7 @@ import config
 import fetch_jobs
 import generate_creative
 import instagram_post
+import telegram_post
 import state
 
 
@@ -97,6 +99,19 @@ def main():
                 media_id = instagram_post.post_image(public_url, caption)
 
             print(f"Posted job {job['id']} ({job['title']} @ {job['company']}) -> media_id {media_id}")
+
+            # Telegram par bhi wahi media + caption (apply link samet) bhej do.
+            # Ye best-effort hai — Telegram fail ho bhi jaye to Instagram post
+            # ho chuka hai isliye job ko posted hi maana jayega (dobara retry nahi hoga).
+            try:
+                if use_reel:
+                    telegram_post.post_video(local_path, caption)
+                else:
+                    telegram_post.post_photo(local_path, caption)
+                print(f"Job {job['id']} Telegram par bhi post ho gaya.")
+            except Exception as te:
+                print(f"WARNING: Telegram par post nahi ho paya ({te}).")
+
             state.mark_posted(job["id"])
 
         except Exception as e:
