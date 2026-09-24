@@ -514,4 +514,11 @@ def build_caption(job: dict) -> str:
     link_line = f"\n🔗 Apply: {job['link']}" if job.get("link") else ""
     return (
         f"🚨 {job['title']} @ {job['company']}\n\n"
-        f"📍 Locatio
+         f"📍 Location: {job['location']}\n"
+        f"💰 Salary: {job['salary']}\n"
+        f"⏳ Deadline: {job['deadline']}"
+        f"{link_line}\n\n"
+        f"👉 Follow for daily job updates!\n"
+        f"#jobs #hiring #jobalert #freshershiring #{job['company'].replace(' ', '')}"
+    )
+    
