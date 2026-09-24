@@ -1,8 +1,9 @@
 """
 fetch_jobs.py
-Job listings fetch karta hai — do source support karta hai:
-  1. Google Sheet (published as CSV)   -> recommended, free, sabse simple
-  2. Adzuna API                        -> optional, free tier
+Job listings fetch karta hai — teen source support karta hai:
+  1. Repo ki Jobs.csv file (PRIMARY) -> sabse simple, koi setup nahi chahiye
+  2. Google Sheet (published as CSV) -> optional fallback
+  3. Adzuna API                      -> optional fallback
 
 Har job ek dict banti hai:
 {
@@ -19,14 +20,61 @@ Har job ek dict banti hai:
 import csv
 import hashlib
 import io
+import os
 import requests
 
 import config
+
+LOCAL_CSV_PATH = "Jobs.csv"
 
 
 def _make_id(title: str, company: str) -> str:
     raw = f"{title.strip().lower()}|{company.strip().lower()}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _rows_to_jobs(reader):
+    """csv.DictReader se jobs ki list banata hai. Agar kisi row me header se
+    zyada columns ho (extra comma), to wo extra data safely ignore ho jata
+    hai — crash nahi hota, bas wo extra hissa drop ho jata hai."""
+    jobs = []
+    for row in reader:
+        row.pop(None, None)
+        row = {
+            (k or "").strip().lower(): (v or "").strip()
+            for k, v in row.items()
+            if k is not None
+        }
+        title = row.get("title", "")
+        company = row.get("company", "")
+        if not title or not company:
+            continue  # incomplete row, skip
+        jobs.append({
+            "id": _make_id(title, company),
+            "title": title,
+            "company": company,
+            "location": row.get("location", "Remote / Multiple"),
+            "salary": row.get("salary", "Not disclosed"),
+            "deadline": row.get("deadline", "Apply soon"),
+            "link": row.get("link", ""),
+        })
+    return jobs
+
+
+def fetch_from_local_csv(path: str = LOCAL_CSV_PATH):
+    """
+    Repo ke andar rakhi Jobs.csv file se seedha job data padhta hai.
+    Koi Google Sheet setup nahi chahiye — bas GitHub pe Jobs.csv edit karo,
+    commit karo, agli run me bot khud naye jobs utha lega.
+    Columns expected (case-insensitive header row):
+    title, company, location, salary, deadline, link
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} repo me nahi mili")
+
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        return _rows_to_jobs(reader)
 
 
 def fetch_from_sheet():
@@ -43,24 +91,7 @@ def fetch_from_sheet():
     resp.raise_for_status()
 
     reader = csv.DictReader(io.StringIO(resp.text))
-    jobs = []
-    for row in reader:
-        # normalize keys to lowercase
-        row = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
-        title = row.get("title", "")
-        company = row.get("company", "")
-        if not title or not company:
-            continue  # incomplete row, skip
-        jobs.append({
-            "id": _make_id(title, company),
-            "title": title,
-            "company": company,
-            "location": row.get("location", "Remote / Multiple"),
-            "salary": row.get("salary", "Not disclosed"),
-            "deadline": row.get("deadline", "Apply soon"),
-            "link": row.get("link", ""),
-        })
-    return jobs
+    return _rows_to_jobs(reader)
 
 
 def fetch_from_adzuna():
@@ -103,9 +134,21 @@ def fetch_from_adzuna():
 
 
 def fetch_all_jobs():
-    """Sheet ko primary source rakha hai; agar wo fail ho to Adzuna try karta hai."""
+    """
+    Priority order:
+      1. Repo ki Jobs.csv file (sabse simple — GitHub pe edit karo, bas)
+      2. Google Sheet (agar SHEET_CSV_URL set hai)
+      3. Adzuna API (agar keys set hain)
+    Jaise hi kisi source se jobs mil jate hain, aage wale sources skip ho jate hain.
+    """
     jobs = []
-    if config.SHEET_CSV_URL:
+
+    try:
+        jobs.extend(fetch_from_local_csv())
+    except Exception as e:
+        print(f"[fetch_jobs] Local Jobs.csv fetch failed: {e}")
+
+    if not jobs and config.SHEET_CSV_URL:
         try:
             jobs.extend(fetch_from_sheet())
         except Exception as e:
