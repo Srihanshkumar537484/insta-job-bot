@@ -2,7 +2,7 @@ name: Daily Job Reel/Post Automation
 
 on:
   schedule:
-    - cron: "0 4 * * *"
+    - cron: "0 */4 * * *"
   workflow_dispatch: {}
 
 permissions:
