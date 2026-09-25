@@ -1,14 +1,6 @@
 """
 main.py
-Poora pipeline yahin se chalता hai. GitHub Actions daily isi file ko run karega.
-
-Flow (har naye job ke liye, ek ek karke):
-  1. fetch_jobs.py       -> naye jobs nikalo (jo pehle post nahi hui)
-  2. generate_creative.py -> image ya reel banao (alternately)
-  3. git commit+push      -> docs/media me daalo taaki GitHub Pages se public URL mile
-  4. instagram_post.py    -> Graph API se Instagram pe publish karo
-  5. telegram_post.py     -> Instagram ke baad wahi media Telegram channel pe bhi bhejo
-  6. state.py              -> job ko "posted" mark karo taaki dubara na ho
+Poora pipeline yahin se chalta hai. GitHub Actions har 4 ghante isi file ko run karega.
 """
 
 import os
@@ -22,13 +14,12 @@ import config
 import fetch_jobs
 import generate_creative
 import instagram_post
-import telegram_post
 import state
+import telegram_post
 
 
 def git_commit_and_push(paths, message):
     subprocess.run(["git", "add", *paths], check=True)
-    # agar kuch change hi nahi hai to commit skip karo
     diff = subprocess.run(["git", "diff", "--cached", "--quiet"])
     if diff.returncode == 0:
         return False
@@ -39,7 +30,6 @@ def git_commit_and_push(paths, message):
 
 
 def wait_until_public(url, max_wait=180, poll_every=10):
-    """GitHub Pages update hone me thoda time leta hai, ready hone tak poll karo."""
     waited = 0
     while waited < max_wait:
         try:
@@ -73,7 +63,7 @@ def main():
     print(f"{len(new_jobs)} naye jobs post honge is run me.")
 
     for i, job in enumerate(new_jobs):
-        use_reel = (i % 2 == 0)  # alternate: reel, image, reel, image...
+        use_reel = (i % 2 == 0)
         caption = generate_creative.build_caption(job)
 
         try:
@@ -99,24 +89,21 @@ def main():
                 media_id = instagram_post.post_image(public_url, caption)
 
             print(f"Posted job {job['id']} ({job['title']} @ {job['company']}) -> media_id {media_id}")
-
-            # Telegram par bhi wahi media + caption (apply link samet) bhej do.
-            # Ye best-effort hai — Telegram fail ho bhi jaye to Instagram post
-            # ho chuka hai isliye job ko posted hi maana jayega (dobara retry nahi hoga).
-            try:
-                if use_reel:
-                    telegram_post.post_video(local_path, caption)
-                else:
-                    telegram_post.post_photo(local_path, caption)
-                print(f"Job {job['id']} Telegram par bhi post ho gaya.")
-            except Exception as te:
-                print(f"WARNING: Telegram par post nahi ho paya ({te}).")
-
             state.mark_posted(job["id"])
+
+            try:
+                ig_link = instagram_post.get_permalink(media_id)
+            except Exception as e:
+                print(f"[main] Permalink nikalne me error (Telegram msg link ke bina jayega): {e}")
+                ig_link = ""
+
+            if telegram_post.is_configured():
+                sent = telegram_post.send_job_notification(job, ig_link)
+                if sent:
+                    print(f"Telegram pe bhi notify kar diya job {job['id']} ke liye.")
 
         except Exception as e:
             print(f"FAILED to post job {job['id']}: {e}")
-            # is job ko skip karke agli job try karo, state update nahi hoga isliye next run me retry hoga
 
         if i < len(new_jobs) - 1:
             time.sleep(config.POST_GAP_SECONDS)
