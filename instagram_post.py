@@ -1,15 +1,7 @@
 """
 instagram_post.py
 Instagram Graph API se post karne ka code — dono, feed IMAGE aur REEL,
-support karta hai. Graph API ka flow do-step hai:
-  1. Media container create karo (image_url ya video_url de kar)
-  2. Container ko publish karo
-Video (reel) ke case me container ko process hone me thoda time lagta hai,
-isliye status poll karte hain jab tak "FINISHED" na ho jaye.
-
-IMPORTANT: Graph API ko media ka PUBLIC URL chahiye (localhost/private URL
-nahi chalega) — isliye pehle GitHub Pages pe file host karni padti hai
-(main.py me ye step hai).
+support karta hai.
 """
 
 import time
@@ -26,8 +18,6 @@ def _check_token():
 
 
 def _raise_with_detail(resp):
-    """Graph API fail ho to uska asli JSON error message print/raise karo,
-    sirf '400 Bad Request' nahi — taaki asli wajah pata chale."""
     if resp.status_code >= 400:
         try:
             detail = resp.json()
@@ -37,9 +27,7 @@ def _raise_with_detail(resp):
 
 
 def post_image(image_url: str, caption: str) -> str:
-    """Feed post karta hai. Returns published media id."""
     _check_token()
-
     create_url = f"{GRAPH_BASE}/{config.IG_USER_ID}/media"
     resp = requests.post(create_url, data={
         "image_url": image_url,
@@ -48,14 +36,11 @@ def post_image(image_url: str, caption: str) -> str:
     }, timeout=60)
     _raise_with_detail(resp)
     creation_id = resp.json()["id"]
-
     return _publish(creation_id)
 
 
 def post_reel(video_url: str, caption: str, cover_url: str = None) -> str:
-    """Reel post karta hai. Returns published media id."""
     _check_token()
-
     create_url = f"{GRAPH_BASE}/{config.IG_USER_ID}/media"
     payload = {
         "media_type": "REELS",
@@ -75,7 +60,6 @@ def post_reel(video_url: str, caption: str, cover_url: str = None) -> str:
 
 
 def _wait_until_ready(creation_id: str, max_wait_seconds: int = 180, poll_every: int = 10):
-    """Reel container ko process hone me time lagta hai — status poll karo."""
     status_url = f"{GRAPH_BASE}/{creation_id}"
     waited = 0
     while waited < max_wait_seconds:
@@ -102,3 +86,13 @@ def _publish(creation_id: str) -> str:
     }, timeout=60)
     _raise_with_detail(resp)
     return resp.json()["id"]
+
+
+def get_permalink(media_id: str) -> str:
+    """Publish hone ke baad us post ka asli Instagram link (permalink) nikalta hai."""
+    resp = requests.get(f"{GRAPH_BASE}/{media_id}", params={
+        "fields": "permalink",
+        "access_token": config.IG_ACCESS_TOKEN,
+    }, timeout=30)
+    _raise_with_detail(resp)
+    return resp.json().get("permalink", "")
